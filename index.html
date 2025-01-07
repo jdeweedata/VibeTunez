@@ -12,10 +12,28 @@
 			<div class="logo">VibeTunez</div>
 			<div class="screen-content">
 				<h1>How are you feeling?</h1>
-				<div id="mood-emoji">😊</div>
+				<div class="mood-selector">
+					<div id="mood-emoji">😊</div>
+					<div id="mood-name">Happy</div>
+					<input type="range" id="mood-slider" min="0" max="6" value="0" step="1">
+					<div class="mood-labels">
+						<span>Happy 😊</span>
+						<span>Energetic 🔥</span>
+						<span>Relaxed 😌</span>
+						<span>Nostalgic 🌟</span>
+						<span>Romantic 💖</span>
+						<span>Meditation 🧘</span>
+						<span>Sad 😢</span>
+					</div>
+				</div>
 				<div id="playlist-container" class="hidden">
 					<h2>Now Playing</h2>
 					<div id="playlist-frame"></div>
+					<div class="playback-controls">
+						<button id="prev-track">⏮</button>
+						<button id="play-pause">⏸</button>
+						<button id="next-track">⏭</button>
+					</div>
 					<button id="share-btn">Share Playlist</button>
 				</div>
 			</div>
@@ -24,15 +42,8 @@
 			<button class="wheel-btn menu-btn">MENU</button>
 			<button class="wheel-btn back-btn">◀</button>
 			<button class="wheel-btn forward-btn">▶</button>
-			<button class="wheel-btn play-btn">▶️</button>
-			<div class="wheel-center">
-				<div class="mood-options">
-					<span data-mood="happy">Happy 😊</span>
-					<span data-mood="energetic">Energetic 🔥</span>
-					<span data-mood="relaxed">Relaxed 😌</span>
-					<span data-mood="sad">Sad 😢</span>
-				</div>
-			</div>
+			<button class="wheel-btn play-btn">⏯</button>
+			<div class="wheel-center"></div>
 		</div>
 	</div>
 	<script src="app.js"></script>
