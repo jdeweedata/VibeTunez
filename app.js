@@ -4,6 +4,7 @@ class MoodMusicApp {
 		this.isPlaying = false;
 		this.currentTrackIndex = 0;
 		this.spotifyPlayer = null;
+		this.embedError = false;
 		this.initializeElements();
 		this.initializeEventListeners();
 	}
@@ -13,45 +14,35 @@ class MoodMusicApp {
 		this.moodName = document.getElementById('mood-name');
 		this.moodSlider = document.getElementById('mood-slider');
 		this.playlistContainer = document.getElementById('playlist-container');
+		this.playlistFrame = document.getElementById('playlist-frame');
+		this.fallbackMessage = document.getElementById('fallback-message');
+		this.playlistLink = document.getElementById('playlist-link');
 		this.playPauseBtn = document.getElementById('play-pause');
 		this.prevTrackBtn = document.getElementById('prev-track');
 		this.nextTrackBtn = document.getElementById('next-track');
 		this.shareBtn = document.getElementById('share-btn');
 		this.moodLabels = document.querySelectorAll('.mood-labels span');
-		this.playlistFrame = document.getElementById('playlist-frame');
 	}
 
 	initializeEventListeners() {
-		// Mood slider control
 		this.moodSlider.addEventListener('input', () => this.handleMoodChange());
-
-		// Playback controls
 		this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
 		this.prevTrackBtn.addEventListener('click', () => this.previousTrack());
 		this.nextTrackBtn.addEventListener('click', () => this.nextTrack());
-
-		// iPod controls
+		
 		document.querySelector('.menu-btn').addEventListener('click', () => this.handleMenu());
 		document.querySelector('.back-btn').addEventListener('click', () => this.previousTrack());
 		document.querySelector('.forward-btn').addEventListener('click', () => this.nextTrack());
 		document.querySelector('.play-btn').addEventListener('click', () => this.togglePlayPause());
-
-		// Share button
+		
 		this.shareBtn.addEventListener('click', () => this.sharePlaylist());
 
-		// Listen for Spotify iframe messages
-		window.addEventListener('message', (event) => {
-			if (event.origin !== 'https://open.spotify.com') return;
-			
-			try {
-				const data = JSON.parse(event.data);
-				if (data.type === 'ready') {
-					this.spotifyPlayer = event.source;
-				}
-			} catch (e) {
-				console.error('Error parsing Spotify message:', e);
+		// Listen for Spotify iframe errors
+		window.addEventListener('error', (event) => {
+			if (event.target.tagName === 'IFRAME') {
+				this.handleSpotifyError();
 			}
-		});
+		}, true);
 	}
 
 	handleMoodChange() {
@@ -81,18 +72,39 @@ class MoodMusicApp {
 
 	generatePlaylist(mood) {
 		const playlists = {
-			happy: "https://open.spotify.com/embed/playlist/37i9dQZF1DX3rxVfibe1L0",
-			energetic: "https://open.spotify.com/embed/playlist/37i9dQZF1DX76Wlfdnj7AP",
-			relaxed: "https://open.spotify.com/embed/playlist/37i9dQZF1DWZd79rJ6a7lp",
-			nostalgic: "https://open.spotify.com/embed/playlist/37i9dQZF1DX4o1oenSJRJd",
-			romantic: "https://open.spotify.com/embed/playlist/37i9dQZF1DWXb9I5xoXLjp",
-			meditation: "https://open.spotify.com/embed/playlist/37i9dQZF1DWZqd5JICZI0u",
-			sad: "https://open.spotify.com/embed/playlist/37i9dQZF1DX7qK8ma5wgG1"
+			happy: {
+				embed: "https://open.spotify.com/embed/playlist/37i9dQZF1DX3rxVfibe1L0",
+				link: "https://open.spotify.com/playlist/37i9dQZF1DX3rxVfibe1L0"
+			},
+			energetic: {
+				embed: "https://open.spotify.com/embed/playlist/37i9dQZF1DX76Wlfdnj7AP",
+				link: "https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP"
+			},
+			relaxed: {
+				embed: "https://open.spotify.com/embed/playlist/37i9dQZF1DWZd79rJ6a7lp",
+				link: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp"
+			},
+			nostalgic: {
+				embed: "https://open.spotify.com/embed/playlist/37i9dQZF1DX4o1oenSJRJd",
+				link: "https://open.spotify.com/playlist/37i9dQZF1DX4o1oenSJRJd"
+			},
+			romantic: {
+				embed: "https://open.spotify.com/embed/playlist/37i9dQZF1DWXb9I5xoXLjp",
+				link: "https://open.spotify.com/playlist/37i9dQZF1DWXb9I5xoXLjp"
+			},
+			meditation: {
+				embed: "https://open.spotify.com/embed/playlist/37i9dQZF1DWZqd5JICZI0u",
+				link: "https://open.spotify.com/playlist/37i9dQZF1DWZqd5JICZI0u"
+			},
+			sad: {
+				embed: "https://open.spotify.com/embed/playlist/37i9dQZF1DX7qK8ma5wgG1",
+				link: "https://open.spotify.com/playlist/37i9dQZF1DX7qK8ma5wgG1"
+			}
 		};
 
 		this.playlistFrame.innerHTML = `
 			<iframe 
-				src="${playlists[mood]}" 
+				src="${playlists[mood].embed}" 
 				width="100%" 
 				height="300" 
 				frameborder="0" 
@@ -102,12 +114,28 @@ class MoodMusicApp {
 			</iframe>
 		`;
 
+		this.playlistLink.href = playlists[mood].link;
 		this.playlistContainer.classList.remove('hidden');
-		this.isPlaying = false;
-		this.updatePlayPauseButtons();
+		
+		if (this.embedError) {
+			this.fallbackMessage.classList.remove('hidden');
+		} else {
+			this.fallbackMessage.classList.add('hidden');
+		}
+	}
+
+	handleSpotifyError() {
+		this.embedError = true;
+		this.fallbackMessage.classList.remove('hidden');
+		console.log('Spotify embed error detected. Showing fallback message.');
 	}
 
 	togglePlayPause() {
+		if (this.embedError) {
+			window.open(this.playlistLink.href, '_blank');
+			return;
+		}
+
 		this.isPlaying = !this.isPlaying;
 		this.updatePlayPauseButtons();
 		this.sendSpotifyCommand(this.isPlaying ? 'play' : 'pause');
@@ -119,10 +147,12 @@ class MoodMusicApp {
 	}
 
 	previousTrack() {
+		if (this.embedError) return;
 		this.sendSpotifyCommand('prev');
 	}
 
 	nextTrack() {
+		if (this.embedError) return;
 		this.sendSpotifyCommand('next');
 	}
 
@@ -142,11 +172,14 @@ class MoodMusicApp {
 	}
 
 	sharePlaylist() {
+		if (this.embedError) {
+			window.open(this.playlistLink.href, '_blank');
+			return;
+		}
 		alert(`Sharing your ${this.currentMood} ${this.moodEmoji.textContent} playlist!`);
 	}
 }
 
-// Initialize the app when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
 	const app = new MoodMusicApp();
 });
