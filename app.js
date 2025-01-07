@@ -3,6 +3,7 @@ class MoodMusicApp {
 		this.currentMood = 'happy';
 		this.isPlaying = false;
 		this.currentTrackIndex = 0;
+		this.spotifyPlayer = null;
 		this.initializeElements();
 		this.initializeEventListeners();
 	}
@@ -17,6 +18,7 @@ class MoodMusicApp {
 		this.nextTrackBtn = document.getElementById('next-track');
 		this.shareBtn = document.getElementById('share-btn');
 		this.moodLabels = document.querySelectorAll('.mood-labels span');
+		this.playlistFrame = document.getElementById('playlist-frame');
 	}
 
 	initializeEventListeners() {
@@ -30,12 +32,26 @@ class MoodMusicApp {
 
 		// iPod controls
 		document.querySelector('.menu-btn').addEventListener('click', () => this.handleMenu());
-		document.querySelector('.back-btn').addEventListener('click', () => this.handleBack());
-		document.querySelector('.forward-btn').addEventListener('click', () => this.handleForward());
+		document.querySelector('.back-btn').addEventListener('click', () => this.previousTrack());
+		document.querySelector('.forward-btn').addEventListener('click', () => this.nextTrack());
 		document.querySelector('.play-btn').addEventListener('click', () => this.togglePlayPause());
 
 		// Share button
 		this.shareBtn.addEventListener('click', () => this.sharePlaylist());
+
+		// Listen for Spotify iframe messages
+		window.addEventListener('message', (event) => {
+			if (event.origin !== 'https://open.spotify.com') return;
+			
+			try {
+				const data = JSON.parse(event.data);
+				if (data.type === 'ready') {
+					this.spotifyPlayer = event.source;
+				}
+			} catch (e) {
+				console.error('Error parsing Spotify message:', e);
+			}
+		});
 	}
 
 	handleMoodChange() {
@@ -56,7 +72,6 @@ class MoodMusicApp {
 		this.moodEmoji.textContent = mood.emoji;
 		this.moodName.textContent = mood.name;
 
-		// Update active label
 		this.moodLabels.forEach((label, i) => {
 			label.classList.toggle('active', i === index);
 		});
@@ -75,58 +90,55 @@ class MoodMusicApp {
 			sad: "https://open.spotify.com/embed/playlist/37i9dQZF1DX7qK8ma5wgG1"
 		};
 
-		const playlistFrame = document.getElementById('playlist-frame');
-		playlistFrame.innerHTML = `
+		this.playlistFrame.innerHTML = `
 			<iframe 
 				src="${playlists[mood]}" 
 				width="100%" 
 				height="300" 
 				frameborder="0" 
 				allowtransparency="true" 
-				allow="encrypted-media">
+				allow="encrypted-media"
+				id="spotify-iframe">
 			</iframe>
 		`;
 
 		this.playlistContainer.classList.remove('hidden');
+		this.isPlaying = false;
+		this.updatePlayPauseButtons();
 	}
 
 	togglePlayPause() {
 		this.isPlaying = !this.isPlaying;
+		this.updatePlayPauseButtons();
+		this.sendSpotifyCommand(this.isPlaying ? 'play' : 'pause');
+	}
+
+	updatePlayPauseButtons() {
 		this.playPauseBtn.textContent = this.isPlaying ? '⏸' : '▶';
 		document.querySelector('.play-btn').textContent = this.isPlaying ? '⏸' : '⏯';
-		
-		// Here you would typically control the Spotify playback
-		if (this.isPlaying) {
-			// Start playback
-		} else {
-			// Pause playback
-		}
 	}
 
 	previousTrack() {
-		// Implement previous track functionality
-		console.log('Previous track');
+		this.sendSpotifyCommand('prev');
 	}
 
 	nextTrack() {
-		// Implement next track functionality
-		console.log('Next track');
+		this.sendSpotifyCommand('next');
+	}
+
+	sendSpotifyCommand(command) {
+		const iframe = document.getElementById('spotify-iframe');
+		if (iframe && iframe.contentWindow) {
+			iframe.contentWindow.postMessage({ 
+				command: command 
+			}, 'https://open.spotify.com');
+		}
 	}
 
 	handleMenu() {
 		this.playlistContainer.classList.add('hidden');
 		this.moodSlider.value = 0;
 		this.handleMoodChange();
-	}
-
-	handleBack() {
-		if (!this.playlistContainer.classList.contains('hidden')) {
-			this.playlistContainer.classList.add('hidden');
-		}
-	}
-
-	handleForward() {
-		this.playlistContainer.classList.remove('hidden');
 	}
 
 	sharePlaylist() {
