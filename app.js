@@ -5,8 +5,31 @@ class MoodMusicApp {
 		this.currentTrackIndex = 0;
 		this.spotifyPlayer = null;
 		this.embedError = false;
+		this.mediaKeySystemAccess = null;
 		this.initializeElements();
 		this.initializeEventListeners();
+		this.initializeMediaAccess();
+	}
+
+	async initializeMediaAccess() {
+		try {
+			const config = [{
+				initDataTypes: ['cenc'],
+				audioCapabilities: [{
+					contentType: 'audio/mp4;codecs="mp4a.40.2"',
+					robustness: 'SW_SECURE_CRYPTO'
+				}],
+				videoCapabilities: [{
+					contentType: 'video/mp4;codecs="avc1.42E01E"',
+					robustness: 'SW_SECURE_CRYPTO'
+				}]
+			}];
+
+			this.mediaKeySystemAccess = await navigator.requestMediaKeySystemAccess('com.widevine.alpha', config);
+		} catch (error) {
+			console.warn('Media key system access not available:', error);
+			this.embedError = true;
+		}
 	}
 
 	initializeElements() {
@@ -37,12 +60,26 @@ class MoodMusicApp {
 		
 		this.shareBtn.addEventListener('click', () => this.sharePlaylist());
 
-		// Listen for Spotify iframe errors
+		// Enhanced error handling for iframe
 		window.addEventListener('error', (event) => {
 			if (event.target.tagName === 'IFRAME') {
-				this.handleSpotifyError();
+				this.handleSpotifyError('iframe_load_error');
 			}
 		}, true);
+
+		// Handle third-party cookie issues
+		window.addEventListener('message', (event) => {
+			if (event.origin === 'https://open.spotify.com') {
+				try {
+					const data = JSON.parse(event.data);
+					if (data.type === 'cookie_blocked') {
+						this.handleSpotifyError('cookie_blocked');
+					}
+				} catch (e) {
+					console.warn('Error parsing Spotify message:', e);
+				}
+			}
+		});
 	}
 
 	handleMoodChange() {
@@ -102,32 +139,43 @@ class MoodMusicApp {
 			}
 		};
 
-		this.playlistFrame.innerHTML = `
-			<iframe 
-				src="${playlists[mood].embed}" 
-				width="100%" 
-				height="300" 
-				frameborder="0" 
-				allowtransparency="true" 
-				allow="encrypted-media"
-				id="spotify-iframe">
-			</iframe>
-		`;
+		const playlist = playlists[mood];
+		this.playlistLink.href = playlist.link;
 
-		this.playlistLink.href = playlists[mood].link;
-		this.playlistContainer.classList.remove('hidden');
+		// Add loading state
+		this.playlistFrame.innerHTML = '<div class="loading">Loading playlist...</div>';
+
+		// Create and load iframe with error handling
+		const iframe = document.createElement('iframe');
+		iframe.src = playlist.embed;
+		iframe.width = '100%';
+		iframe.height = '300';
+		iframe.frameBorder = '0';
+		iframe.allow = 'encrypted-media; autoplay; clipboard-write';
+		iframe.id = 'spotify-iframe';
 		
+		iframe.onload = () => {
+			if (!this.embedError) {
+				this.fallbackMessage.classList.add('hidden');
+			}
+		};
+
+		iframe.onerror = () => this.handleSpotifyError('iframe_load_error');
+
+		// Replace loading state with iframe
+		this.playlistFrame.innerHTML = '';
+		this.playlistFrame.appendChild(iframe);
+		
+		this.playlistContainer.classList.remove('hidden');
 		if (this.embedError) {
 			this.fallbackMessage.classList.remove('hidden');
-		} else {
-			this.fallbackMessage.classList.add('hidden');
 		}
 	}
 
-	handleSpotifyError() {
+	handleSpotifyError(type) {
 		this.embedError = true;
 		this.fallbackMessage.classList.remove('hidden');
-		console.log('Spotify embed error detected. Showing fallback message.');
+		console.warn(`Spotify embed error: ${type}`);
 	}
 
 	togglePlayPause() {
@@ -159,9 +207,14 @@ class MoodMusicApp {
 	sendSpotifyCommand(command) {
 		const iframe = document.getElementById('spotify-iframe');
 		if (iframe && iframe.contentWindow) {
-			iframe.contentWindow.postMessage({ 
-				command: command 
-			}, 'https://open.spotify.com');
+			try {
+				iframe.contentWindow.postMessage({ 
+					command: command 
+				}, 'https://open.spotify.com');
+			} catch (error) {
+				console.warn('Error sending command to Spotify:', error);
+				this.handleSpotifyError('command_error');
+			}
 		}
 	}
 
