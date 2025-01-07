@@ -6,6 +6,7 @@ class MoodMusicApp {
 		this.spotifyPlayer = null;
 		this.embedError = false;
 		this.mediaKeySystemAccess = null;
+		this.playbackReady = false;
 		this.initializeElements();
 		this.initializeEventListeners();
 		this.initializeMediaAccess();
@@ -67,16 +68,32 @@ class MoodMusicApp {
 			}
 		}, true);
 
-		// Handle third-party cookie issues
+		// Handle Spotify messages
 		window.addEventListener('message', (event) => {
 			if (event.origin === 'https://open.spotify.com') {
 				try {
-					const data = JSON.parse(event.data);
-					if (data.type === 'cookie_blocked') {
+					// Handle both string and object messages
+					let data = event.data;
+					if (typeof data === 'string') {
+						try {
+							data = JSON.parse(data);
+						} catch (e) {
+							// If it's not valid JSON, ignore it
+							return;
+						}
+					}
+
+					// Handle different message types
+					if (data.type === 'ready') {
+						this.playbackReady = true;
+						this.spotifyPlayer = event.source;
+					} else if (data.type === 'cookie_blocked') {
 						this.handleSpotifyError('cookie_blocked');
+					} else if (data.type === 'playback_error') {
+						this.handleSpotifyError('playback_error');
 					}
 				} catch (e) {
-					console.warn('Error parsing Spotify message:', e);
+					console.warn('Error handling Spotify message:', e);
 				}
 			}
 		});
@@ -142,6 +159,11 @@ class MoodMusicApp {
 		const playlist = playlists[mood];
 		this.playlistLink.href = playlist.link;
 
+		// Reset playback state
+		this.playbackReady = false;
+		this.isPlaying = false;
+		this.updatePlayPauseButtons();
+
 		// Add loading state
 		this.playlistFrame.innerHTML = '<div class="loading">Loading playlist...</div>';
 
@@ -157,6 +179,12 @@ class MoodMusicApp {
 		iframe.onload = () => {
 			if (!this.embedError) {
 				this.fallbackMessage.classList.add('hidden');
+				// Wait for playback to be ready
+				setTimeout(() => {
+					if (!this.playbackReady) {
+						this.handleSpotifyError('playback_not_ready');
+					}
+				}, 5000);
 			}
 		};
 
@@ -205,6 +233,12 @@ class MoodMusicApp {
 	}
 
 	sendSpotifyCommand(command) {
+		if (!this.playbackReady) {
+			console.warn('Playback not ready, opening in Spotify instead');
+			window.open(this.playlistLink.href, '_blank');
+			return;
+		}
+
 		const iframe = document.getElementById('spotify-iframe');
 		if (iframe && iframe.contentWindow) {
 			try {
